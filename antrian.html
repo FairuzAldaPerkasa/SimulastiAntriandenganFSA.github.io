@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi Restoran dengan FSA</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            background: linear-gradient(to bottom, #ffffff, #dfe9f3);
+            border-radius: 10px;
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #34495e;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+
+        .restaurant {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+            padding: 20px;
+            background: #ecf0f1;
+            border-radius: 10px;
+            box-sizing: border-box;
+        }
+
+        .table {
+            width: 100px;
+            height: 100px;
+            background-color: #f39c12;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            color: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .table.empty {
+            background-color: #bdc3c7;
+        }
+
+        .customer {
+            width: 40px;
+            height: 40px;
+            background-color: #3498db;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            color: #fff;
+        }
+
+        .log {
+            height: 150px;
+            overflow-y: auto;
+            border: 1px solid #b0c4de;
+            border-radius: 5px;
+            padding: 10px;
+            background: #f8f9fa;
+            margin-top: 20px;
+            text-align: left;
+            font-family: monospace;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .button:hover {
+            background-color: #218c54;
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f4f6f7;
+            border-radius: 5px;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .stats p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simulasi Restoran dengan FSA</h1>
+        <p>Pelanggan akan dilayani di meja yang tersedia, dan setelah selesai, mereka meninggalkan restoran.</p>
+        <button class="button" id="startSimulation">Mulai Simulasi</button>
+        <div class="restaurant" id="restaurant">
+            <!-- Tables will be dynamically added here -->
+        </div>
+        <div class="log" id="log"></div>
+        <div class="stats" id="stats">
+            <p>Status Sistem: <span id="systemStatus">q0</span></p>
+            <p>Total Pelanggan: <span id="totalCustomers">0</span></p>
+            <p>Pelanggan Terlayani: <span id="servedCustomers">0</span></p>
+            <p>Pelanggan Menunggu: <span id="waitingCustomers">0</span></p>
+            <p>Pelanggan Tidak Terlayani: <span id="missedCustomers">0</span></p>
+        </div>
+    </div>
+
+    <script>
+        const restaurant = document.getElementById("restaurant");
+        const log = document.getElementById("log");
+        const startButton = document.getElementById("startSimulation");
+        const systemStatusElement = document.getElementById("systemStatus");
+        const stats = {
+            totalCustomers: 0,
+            servedCustomers: 0,
+            waitingCustomers: 0,
+            missedCustomers: 0
+        };
+
+        let systemState = "q0"; // Initial state
+
+        const numTables = 10; // Jumlah meja
+        const customers = [];
+        const serviceTimes = Array.from({ length: numTables }, () => Math.floor(Math.random() * 5000) + 2000);
+
+        function createTables() {
+            for (let i = 0; i < numTables; i++) {
+                const table = document.createElement("div");
+                table.className = "table empty";
+                table.id = `table-${i}`;
+                table.textContent = `Meja ${i + 1}`;
+                restaurant.appendChild(table);
+            }
+        }
+
+        function logMessage(message) {
+            const p = document.createElement("p");
+            p.textContent = message;
+            log.appendChild(p);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateStats() {
+            document.getElementById("totalCustomers").textContent = stats.totalCustomers;
+            document.getElementById("servedCustomers").textContent = stats.servedCustomers;
+            document.getElementById("waitingCustomers").textContent = stats.waitingCustomers;
+            document.getElementById("missedCustomers").textContent = stats.missedCustomers;
+            systemStatusElement.textContent = systemState;
+        }
+
+        function transitionState(event) {
+            switch (systemState) {
+                case "q0":
+                    if (event === "customer_arrives") {
+                        systemState = "q1";
+                    }
+                    break;
+                case "q1":
+                    if (event === "customer_arrives" && stats.waitingCustomers + stats.servedCustomers >= numTables) {
+                        systemState = "q2";
+                    } else if (event === "service_completed" && stats.waitingCustomers + stats.servedCustomers === 0) {
+                        systemState = "q0";
+                    }
+                    break;
+                case "q2":
+                    if (event === "service_completed" && stats.waitingCustomers + stats.servedCustomers < numTables) {
+                        systemState = "q1";
+                    }
+                    break;
+            }
+            updateStats();
+        }
+
+        function assignCustomerToTable(customerId) {
+            const emptyTable = document.querySelector(".table.empty");
+            if (emptyTable) {
+                emptyTable.classList.remove("empty");
+
+                const customerElement = document.createElement("div");
+                customerElement.className = "customer";
+                customerElement.textContent = `P${customerId}`;
+
+                emptyTable.appendChild(customerElement);
+                logMessage(`Pelanggan ${customerId} duduk di ${emptyTable.textContent}.`);
+
+                setTimeout(() => {
+                    emptyTable.removeChild(customerElement);
+                    emptyTable.classList.add("empty");
+                    stats.servedCustomers++;
+                    stats.waitingCustomers--;
+                    logMessage(`Pelanggan ${customerId} selesai dilayani di ${emptyTable.textContent}.`);
+                    transitionState("service_completed");
+                }, serviceTimes[parseInt(emptyTable.id.split("-")[1])]);
+
+                stats.waitingCustomers++;
+                transitionState("customer_arrives");
+                return true;
+            } else {
+                stats.missedCustomers++;
+                logMessage(`Pelanggan ${customerId} meninggalkan restoran karena semua meja penuh.`);
+                transitionState("customer_arrives");
+                return false;
+            }
+        }
+
+        function simulate() {
+            let customerId = 1;
+            const interval = setInterval(() => {
+                if (customerId > 100) {
+                    clearInterval(interval);
+                    logMessage("Simulasi selesai.");
+                    return;
+                }
+
+                stats.totalCustomers++;
+                if (assignCustomerToTable(customerId)) {
+                    customers.push(customerId);
+                }
+
+                customerId++;
+                updateStats();
+            }, 1500);
+        }
+
+        startButton.addEventListener("click", () => {
+            log.innerHTML = "";
+            stats.totalCustomers = 0;
+            stats.servedCustomers = 0;
+            stats.waitingCustomers = 0;
+            stats.missedCustomers = 0;
+            systemState = "q0";
+            updateStats();
+            simulate();
+        });
+
+        createTables();
+    </script>
+</body>
+</html>
